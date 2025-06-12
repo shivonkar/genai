@@ -121,11 +121,6 @@ for chunk in chunk_outputs:
 #%% RAG: Retrieval  Augmented generation
 
 #We'll LangChain now onwards. It is well knwon Framework for GenAI development.
-
-#Let us create data pdf from link # https://en.wikipedia.org/wiki/World_population
-
-file_pdf_world_population = './data/World_population.pdf'
-
 # http://python.langchain.com/docs/integrations/document_loaders/
 # https://python.langchain.com/docs/integrations/document_loaders/pypdfloader/
 
@@ -134,14 +129,19 @@ file_pdf_world_population = './data/World_population.pdf'
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-    
-loader_pdf = PyPDFLoader(file_path = file_pdf_world_population, mode = "single") # "single" for the entire document
 
+#Let us create data pdf from link # https://en.wikipedia.org/wiki/World_population
+file_pdf_world_population = './data/World_population.pdf'
+    
+loader_pdf = PyPDFLoader(file_path = file_pdf_world_population) #, mode = "single" for the entire document
 pdf_all_pages = loader_pdf.load()
+
+len(pdf_all_pages)
 
 #See top and bottom few letters
 print(pdf_all_pages[0].page_content[: 500])
 print(pdf_all_pages[0].page_content[-500:])
+print(pdf_all_pages[len(pdf_all_pages)-1].page_content[-500:])
 
 #Create Splitter object
 text_char_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", "."], #The character that should be used to split
@@ -150,13 +150,18 @@ text_char_splitter = RecursiveCharacterTextSplitter(separators=["\n\n", "\n", ".
                                     )
 
 #get chunks
-chunks = text_char_splitter.split_text(pdf_all_pages[0].page_content)
-
+chunks = []
+for i in range(len(pdf_all_pages)):
+    chunks_per_page = text_char_splitter.split_text(pdf_all_pages[i].page_content)
+    chunks.extend(chunks_per_page)
+    del(chunks_per_page)
+    
 #Show the number of chunks created
 print(f"The number of chunks created : {len(chunks)}") #247
 
-#See first few chunks
-chunks[:3]
+#See first and last chunks
+chunks[:1]
+chunks[:-1]
 
 #### Embeddings
 # https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
@@ -166,7 +171,7 @@ chunks[:3]
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 #For the first time, model will download and secondtime, it will use as is
-model_embeddings = SentenceTransformerEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2', model_kwargs={"trust_remote_code":True}) 
+model_embeddings = SentenceTransformerEmbeddings(model_name='sentence-transformers/all-MiniLM-L6-v2') # , model_kwargs={"trust_remote_code":True}
 
 embeddings = model_embeddings.embed_documents(chunks)
 
@@ -197,7 +202,7 @@ docstore=InMemoryDocstore(),
 index_to_docstore_id={},
 )
 
-#The 'vector_store' need follling document obkect to b einserted in VDB.
+#The 'vector_store' need follling document obkect to be inserted in VDB.
 from langchain_core.documents import Document
 
 #Transformation into Document object type
@@ -219,10 +224,13 @@ gc.collect()
 ###Retrieval
 
 # Load the VDB
-vector_store = FAISS.load_local(f"./model/",index_name="vdb_World_population", embeddings = model_embeddings, allow_dangerous_deserialization = True)
+vector_store = FAISS.load_local(f"./model/",index_name="vdb_World_population", embeddings = model_embeddings) # , allow_dangerous_deserialization = True
 
 #Any query
 query = "When world population reached to 1 billion?"
+query = "What is projetion of world population for year 2037?"
+# query = "What is prjetion of world population for yar 2045?"
+# query = "What is prjetion of world population for yar 2145?"
 
 # Perform similarity search
 retrieved_documents = vector_store.similarity_search(query, k=3)
@@ -248,6 +256,7 @@ Question: {query}
 
 Context : {retrieved_context}
 """
+
 
 ###Generation
 
